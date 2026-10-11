@@ -73,10 +73,10 @@ These commands are documentation. Git changes are not permission to deploy to pr
 
 ## Requirements
 
-- Self-hosted Supabase function runtime with `SUPABASE_DB_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Self-hosted Supabase function runtime with `SUPABASE_DB_URL` and `SUPABASE_SECRET_KEYS`, populated from Docker Compose `.env` variable `SUPABASE_SECRET_KEY`. Requests use the `apikey` header, **not** an `Authorization` Bearer token. If the runtime has `VERIFY_JWT=true`, this cannot work until the instance's JWT verification policy is adjusted; standard self-hosted Compose sets `FUNCTIONS_VERIFY_JWT=false` and the handler validates `apikey` itself.
 - A valid HubSpot credential already present in database Vault as `HUBSPOT_ACCESS_TOKEN`.
 - HubSpot CRM company/contact read/write and association-read permissions.
-- A trusted backend or administrator capable of calling authenticated endpoints; **never** expose the service-role token to frontend code.
+- A trusted backend or administrator capable of calling authenticated endpoints; **never** expose the Supabase secret API key to frontend code.
 - Approval of each write through the preview/apply protocol.
 
 The integration reads existing `brightside` base tables and HubSpot export views. **No database migration** is part of this repository version.

@@ -6,7 +6,8 @@ import { decide } from "../hubspot-webhook/lib/decide.ts";
 // Neither the request body nor query string can override it.
 const DRY_RUN: boolean = true;
 const HUBSPOT_API = "https://api.hubapi.com";
-const PAGE_SIZE = 100;
+// HubSpot limits list pages to 50 when propertiesWithHistory is requested.
+const PAGE_SIZE = 50;
 
 type Entity = "companies" | "contacts";
 type Row = Record<string, unknown>;

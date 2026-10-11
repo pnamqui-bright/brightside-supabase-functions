@@ -9,17 +9,20 @@
 | HubSpot → Supabase | `/functions/v1/hubspot-webhook` | HubSpot numeric company/contact IDs |
 | Supabase → HubSpot | `/functions/v1/hubspot-manual-push` | Supabase external company/contact IDs |
 
-For a self-hosted installation whose public URL is `https://supbase.brightsidebrandstudio.com`, prepend that address to the paths.
+For a self-hosted installation whose public URL is `https://supabase.brightsidebrandstudio.com`, prepend that address to the paths.
 
-Each endpoint requires a POST request with a **server-side Supabase service-role JWT** as `Authorization: Bearer ...`. Never put this credential in client-side web applications or source control. The installed self-hosted function service provides `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`. The HubSpot credential is read at invocation time from Supabase Vault under `HUBSPOT_ACCESS_TOKEN`. Function requests are reauthenticated inside the handler even if the API gateway also validates JWTs.
+Each endpoint requires a POST request with the self-hosted **Supabase secret API key** (`sb_secret_...`) on the **`apikey` HTTP header**. Do **not** put it on `Authorization: Bearer` (the opaque key is not a JWT). Never put this privileged credential in client-side web applications or source control. In the Docker Compose `.env`, this key is named `SUPABASE_SECRET_KEY`; the standard functions service receives it as `SUPABASE_SECRET_KEYS={"default":"sb_secret_..."}` and verifies the `apikey` inside each handler. `SUPABASE_DB_URL` is also provided by the functions service. The independent HubSpot credential is read at invocation time from Vault under `HUBSPOT_ACCESS_TOKEN`.
 
 ## Safe preview first
 
-On a trusted server with the service-role token already held in an environment variable called `SERVICE_ROLE_KEY`:
+On a trusted server, in the Supabase deployment directory where `.env` contains `SUPABASE_SECRET_KEY` (do not print the key):
 
 ```sh
-curl -sS 'https://supbase.brightsidebrandstudio.com/functions/v1/hubspot-webhook' \
-  -H "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
+SUPABASE_SECRET_KEY="$(sed -n 's/^SUPABASE_SECRET_KEY=//p' .env | head -n 1)"
+if [ -z "$SUPABASE_SECRET_KEY" ]; then echo 'Missing SUPABASE_SECRET_KEY in .env'; exit 1; fi
+
+curl -sS 'https://supabase.brightsidebrandstudio.com/functions/v1/hubspot-webhook' \
+  -H "apikey: ${SUPABASE_SECRET_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{"action":"preview","objectType":"companies","ids":["HUBSPOT_COMPANY_ID"]}'
 ```
@@ -78,7 +81,7 @@ The manual push imports the shared library from the sibling `hubspot-webhook/lib
 
 1. Run the GitHub validation workflow or `deno task check && deno test tests/` on a development machine.
 2. Confirm the existing Vault `HUBSPOT_ACCESS_TOKEN` is current and has HubSpot CRM read/write scopes and association-read access.
-3. Confirm your self-hosted function runtime has `SUPABASE_DB_URL` and `SUPABASE_SERVICE_ROLE_KEY` (do **not** reveal their values).
+3. Confirm your self-hosted function runtime has `SUPABASE_DB_URL` and `SUPABASE_SECRET_KEYS` (the Compose `.env` uses `SUPABASE_SECRET_KEY`; do **not** reveal their values). `FUNCTIONS_VERIFY_JWT` must be `false` for opaque-key requests, since the handler validates `apikey` independently. This setting applies to **all** functions in standard self-hosting; review the impact before changing it.
 4. Preview a single known matched company; inspect mapped property differences and skip reasons.
 5. Apply only after reviewing, then confirm the changed property in both systems. Repeat with a known associated contact before larger batches.
 6. Do not enable automatic webhooks, cron jobs or the HubSpot subscription manager for these endpoints.

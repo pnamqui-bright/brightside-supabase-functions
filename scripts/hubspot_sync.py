@@ -60,6 +60,7 @@ Authentication:
   opaque API keys; the functions still verify their apikey independently.
 """
     parser = argparse.ArgumentParser(
+        prog="hubspot-sync",
         description=(
             "Invoke the two manually triggered Brightside Supabase/HubSpot sync "
             "Edge Functions. PREVIEW is the default; no CRM writes without --apply."

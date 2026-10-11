@@ -4,6 +4,19 @@ Manually operated HubSpot ↔ Supabase synchronization for Brightside's **self-h
 
 The source code lives here, independently of the production Supabase Docker deployment. Cloning this repository onto a workstation **does not** mean Codex is working on the deployed server.
 
+## Command-line client
+
+A standalone, standard-library Python CLI is included for invoking either manual endpoint. The `bin/hubspot-sync` wrapper works after checkout on Linux with Python 3.9+:
+
+```sh
+./bin/hubspot-sync --help
+./bin/hubspot-sync pull companies --limit 1 --env-file ../supabase/.env
+./bin/hubspot-sync push companies --id YOUR_SUPABASE_COMPANY_ID --apply --env-file ../supabase/.env
+```
+
+Preview is the default. `--apply` requires explicit IDs, shows a fresh preview and prompts for confirmation; see the [full CLI reference](docs/cli.md). The script reads `SUPABASE_SECRET_KEY`, never requires a legacy service-role key, and sends credentials on the `apikey` header.
+
+
 ## Current behavior
 
 | Function | Direction | Trigger |

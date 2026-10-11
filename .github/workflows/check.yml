@@ -18,3 +18,7 @@ jobs:
           deno-version: v2.x
       - run: deno task check
       - run: deno test tests/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m unittest discover -s tests -p 'test_cli.py' -v

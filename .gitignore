@@ -23,3 +23,7 @@ deno.lock
 # Never check in upstream production deployment artifacts
 supabase/
 volumes/
+
+# Python CLI tooling
+__pycache__/
+*.py[cod]

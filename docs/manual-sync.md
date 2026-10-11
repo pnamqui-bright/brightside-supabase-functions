@@ -13,6 +13,8 @@ For a self-hosted installation whose public URL is `https://supabase.brightsideb
 
 Each endpoint requires a POST request with the self-hosted **Supabase secret API key** (`sb_secret_...`) on the **`apikey` HTTP header**. Do **not** put it on `Authorization: Bearer` (the opaque key is not a JWT). Never put this privileged credential in client-side web applications or source control. In the Docker Compose `.env`, this key is named `SUPABASE_SECRET_KEY`; the standard functions service receives it as `SUPABASE_SECRET_KEYS={"default":"sb_secret_..."}` and verifies the `apikey` inside each handler. `SUPABASE_DB_URL` is also provided by the functions service. The independent HubSpot credential is read at invocation time from Vault under `HUBSPOT_ACCESS_TOKEN`.
 
+You can run the same workflow using the [full Python CLI](cli.md), which handles `--help`, authentication, pagination, human-readable previews, and confirmation before apply.
+
 ## Safe preview first
 
 On a trusted server, in the Supabase deployment directory where `.env` contains `SUPABASE_SECRET_KEY` (do not print the key):

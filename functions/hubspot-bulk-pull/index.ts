@@ -2,9 +2,9 @@ import postgres from "npm:postgres@3.4.7";
 import { isAuthorizedSecretRequest } from "../hubspot-webhook/lib/auth.ts";
 import { decide } from "../hubspot-webhook/lib/decide.ts";
 
-// Temporary test setting. Change to false after inspecting the full dry-run report.
-// Neither the request body nor query string can override it.
-const DRY_RUN: boolean = true;
+// Live bulk pull: applying mapped non-conflicting changes is enabled.
+// Neither the request body nor query string can override this setting.
+const DRY_RUN: boolean = false;
 const HUBSPOT_API = "https://api.hubapi.com";
 // HubSpot limits list pages to 50 when propertiesWithHistory is requested.
 const PAGE_SIZE = 50;

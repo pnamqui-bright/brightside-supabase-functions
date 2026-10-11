@@ -92,6 +92,37 @@ const CHILDREN: Record<string, string> = {
 };
 const SAFE_IDENT = /^[a-z][a-z0-9_]*$/;
 
+/** HubSpot dropdown option values verified against this portal (Oct 2026).
+ * Re-check options if CRM properties are edited; unknown values are skipped. */
+const HUBSPOT_ENUM_OPTIONS: Record<string, ReadonlySet<string>> = {
+  marketing_maturity_supabase: new Set(["Upper_T2", "T2", "Unknown", "T3", "Lower_T4", "T1"]),
+  revenue_tier: new Set(["T4", "T2", "T3", "T1", "T0", "Mega", "Unknown"]),
+  role_category_supabase: new Set(["clinical_provider", "office_admin", "executive", "owner_founder", "other"]),
+  contact_provenance_supabase: new Set([
+    "published", "single_source", "verified_first_party", "observed_generic_channel",
+    "published_secondary", "observed_public_directory", "observed_generic", "generic_channel",
+  ]),
+  email_provenance_supabase: new Set([
+    "published", "unavailable", "published_first_party", "observed", "not_observed",
+    "verified_first_party", "published_first_party_document",
+    "verified_first_party_with_prior_observation",
+  ]),
+  icp_vertical: new Set([
+    "Plumbing contractors", "Electrical contractors", "Landscaping companies",
+    "Commercial cleaning companies", "Massage therapy clinics", "Personal training studios",
+    "Acupuncture clinics", "Chiropractic clinics", "Roofing contractors",
+    "Event staging companies", "Tent rental companies", "Event lighting companies",
+    "Event production companies", "Party rental companies", "Event entertainment companies",
+    "AV production companies", "Wedding planners", "Counselling clinics",
+    "Yoga studios", "Pilates studios", "Medical spas", "Aesthetic clinics",
+    "hvac_contractor", "Physiotherapy clinics", "Wedding venues",
+    "Banquet halls", "Event venues", "Event rental companies",
+    "Event DJ companies", "Psychology clinics", "Naturopathic clinics",
+    "Corporate event planners",
+  ]),
+};
+
+
 // Hash comparison avoids secret-length and prefix timing leaks.
 async function equalSecret(a: string, b: string): Promise<boolean> {
   const digest = async (value: string): Promise<Uint8Array> =>
@@ -320,6 +351,11 @@ async function planOne(
     if (direction === "pull" && !targetId) outcome = { action: "skip", reason: "missing_or_ambiguous_target_row" };
     if (field.kind === "datetime" && cell.value && !dateValue(cell.value)) {
       outcome = { action: "skip", reason: "invalid_datetime" };
+    }
+    if (direction === "push" && localValue &&
+      HUBSPOT_ENUM_OPTIONS[field.hubspot] &&
+      !HUBSPOT_ENUM_OPTIONS[field.hubspot].has(localValue)) {
+      outcome = { action: "skip", reason: "unsupported_hubspot_dropdown_value" };
     }
     const source = direction === "pull" ? remoteValue : localValue;
     const destination = direction === "pull" ? localValue : remoteValue;

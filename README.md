@@ -1,76 +1,97 @@
 # Brightside Supabase Edge Functions
 
-Custom TypeScript/Deno Edge Functions for Brightside's **self-hosted** Supabase deployment.
+Manually operated HubSpot ↔ Supabase synchronization for Brightside's **self-hosted** Supabase instance.
 
-This repository is portable development source code, **not** a copy of the production Supabase installation. A checkout on a workstation is never assumed to be running in production.
+The source code lives here, independently of the production Supabase Docker deployment. Cloning this repository onto a workstation **does not** mean Codex is working on the deployed server.
 
-## Current status
+## Current behavior
 
-The repository starts with **disabled scaffolds**:
-- `functions/hubspot-webhook/index.ts` — intended for automatic HubSpot → Supabase updates.
-- `functions/hubspot-manual-push/index.ts` — intended for explicitly triggered Supabase → HubSpot updates.
+| Function | Direction | Trigger |
+| --- | --- | --- |
+| [hubspot-webhook](functions/hubspot-webhook/index.ts) | HubSpot → Supabase | Authenticated manual HTTP POST only |
+| [hubspot-manual-push](functions/hubspot-manual-push/index.ts) | Supabase → HubSpot | Authenticated manual HTTP POST only |
 
-Both currently return HTTP **501 Not Implemented** and **do not read or write CRM data**. Creating or mounting these files does not activate synchronization.
+Despite its historical name, **hubspot-webhook is not an active webhook receiver**. Both functions default to read-only preview mode; updates require explicit action, confirmation and an unchanged preview hash. There is no cron, database trigger, or outbound scheduler.
 
-See [the sync contract](docs/hubspot-sync-contract.md) for requirements that must be implemented and tested before activation.
+**Only existing records linked through HubSpot \`supabase_company_id\`/\`supabase_contact_id\` are synced.** Contacts need a real HubSpot contact→company association matching the existing Supabase company; unmatched contacts are skipped without staging or creating associations. No records are created in either system.
 
-## Layout
+See **[Manual operation and deployment](docs/manual-sync.md)** for payloads, examples, authorization, limits and troubleshooting. See **[Sync contract](docs/hubspot-sync-contract.md)** for mappings and conflict policy.
 
-```text
-brightside-supabase-functions/     # This Git repository
-├── AGENTS.md                      # Development instructions for Codex
+## Repository layout
+
+\`\`\`text
+brightside-supabase-functions/
+├── AGENTS.md                            # Portable Codex development instructions
 ├── deno.json
 ├── functions/
-│   ├── hubspot-webhook/index.ts
-│   └── hubspot-manual-push/index.ts
+│   ├── hubspot-webhook/
+│   │   ├── index.ts                     # Manual HubSpot → Supabase
+│   │   └── lib/
+│   │       ├── sync.ts                  # Shared sync engine and Vault access
+│   │       └── decide.ts                # Conservative conflict decisions
+│   └── hubspot-manual-push/
+│       └── index.ts                     # Manual Supabase → HubSpot
+├── tests/
+│   └── conflicts_test.ts
 ├── deploy/
 │   └── docker-compose.override.example.yml
 └── docs/
-    └── hubspot-sync-contract.md
-```
+    ├── hubspot-sync-contract.md
+    └── manual-sync.md
+\`\`\`
 
-## Install alongside the self-hosted Docker stack
+## Install on the self-hosted server
 
-The example below assumes these sibling directories on your server:
-
-```text
+\`\`\`text
 parent/
-├── AGENTS.md                      # Server-specific production instructions
-├── supabase/                      # Upstream self-hosted Docker deployment
+├── AGENTS.md                            # Server-specific production instructions
+├── supabase/                            # Upstream self-hosted Docker deployment
 │   ├── docker-compose.yml
-│   └── volumes/functions/main/    # Keep Supabase's built-in router
-└── brightside-supabase-functions/  # Checkout of this repo
-```
+│   └── volumes/functions/main/          # Required upstream router; keep it
+└── brightside-supabase-functions/        # Git checkout of this repository
+\`\`\`
 
-1. Clone this repo **beside**, not inside, the `supabase/` deployment directory.
-2. Review `deploy/docker-compose.override.example.yml`. Merge its service mounts into `supabase/docker-compose.override.yml`; **do not overwrite an existing override**. Paths are relative to the directory containing the base Compose file.
-3. Verify the Compose service names and container paths against your installed Supabase version. The example uses `functions` and `studio`, with current upstream paths `/home/deno/functions` and `/app/edge-functions` respectively.
-4. From the `supabase/` deployment directory, validate and apply the new mounts:
+Clone the repo as a sibling of \`supabase/\`. Review [the Compose override example](deploy/docker-compose.override.example.yml) and merge the service mounts into your deployment's \`docker-compose.override.yml\`; **never overwrite existing overrides**. The example mounts both functions in the functions runtime and optionally Studio. The outbound function imports its shared library from the inbound function's directory, so **both function mounts must remain present**.
 
-```sh
+Validate and apply mounts **once**, from the Supabase deployment directory:
+
+\`\`\`sh
 docker compose config --quiet
 docker compose up -d --no-deps --force-recreate functions studio
-```
+\`\`\`
 
-The override bind-mounts each custom function into the existing functions tree and, optionally, the Studio UI. It **does not replace** `volumes/functions/main/` or the upstream function router.
+If Docker cannot mount into Studio's pre-existing read-only functions directory, create the two corresponding placeholder directories inside \`volumes/functions/\`, or omit the optional \`studio\` overrides. Do not remove Supabase's original \`./volumes/functions:/home/deno/functions\` mount or built-in \`main/index.ts\` router.
 
-After a future, **authorized** production rollout, update the server checkout to an approved revision and reload the functions service:
+For subsequent, explicitly approved updates of these two function sources:
 
-```sh
+\`\`\`sh
 git -C ../brightside-supabase-functions pull --ff-only
 docker compose restart functions --no-deps
-```
+\`\`\`
 
-These commands are documentation, not an automatic deployment pipeline. No repository change should be treated as permission to run them against production.
+These commands are documentation. Git changes are not permission to deploy to production.
 
-## Development
+## Requirements
 
-Use Deno and run `deno task check` to type-check the functions. Do not store production credentials or test against live CRM data by default.
+- Self-hosted Supabase function runtime with \`SUPABASE_DB_URL\` and \`SUPABASE_SERVICE_ROLE_KEY\`.
+- A valid HubSpot credential already present in database Vault as \`HUBSPOT_ACCESS_TOKEN\`.
+- HubSpot CRM company/contact read/write and association-read permissions.
+- A trusted backend or administrator capable of calling authenticated endpoints; **never** expose the service-role token to frontend code.
+- Approval of each write through the preview/apply protocol.
 
-## Secrets and security
+The integration reads existing \`brightside\` base tables and HubSpot export views. **No database migration** is part of this repository version.
 
-The HubSpot token is already stored as `HUBSPOT_ACCESS_TOKEN` in the self-hosted database's Supabase Vault. Keep Vault as the source of truth; do not copy tokens into Git, files, or chat. The future functions will require **restricted server-side Vault access**, webhook signature verification, and authenticated manual execution. The scaffolds deliberately implement none of these yet.
+## Conflict-policy limitation
 
-## Reference
+The current Supabase schema tracks the modified timestamp of each *record*, not each property. HubSpot exposes property history. When both sides have nonempty, different values, the functions compare a HubSpot property timestamp to the Supabase **record** timestamp and skip ambiguous or tied cases. This is a conservative approximation, **not exact per-field latest-update-wins**. Empty destinations can be filled, but populated fields are never cleared automatically. Protected consent, marketing-subscription and unrelated HubSpot fields are untouched.
 
-[Supabase's self-hosted Edge Functions guide](https://supabase.com/docs/guides/self-hosting/self-hosted-functions).
+## Tests
+
+\`\`\`sh
+deno task check
+deno test tests/
+\`\`\`
+
+GitHub Actions runs the same static checks and unit tests on pushes. They do **not** test live credentials, networking or database writes. Always preview a known matched company and contact in your own deployment before approving changes.
+
+[Official Supabase self-hosted Functions guide](https://supabase.com/docs/guides/self-hosting/self-hosted-functions).

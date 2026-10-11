@@ -1,5 +1,6 @@
 import postgres from "npm:postgres@3.4.7";
 import { decide, type Direction } from "./decide.ts";
+import { isAuthorizedSecretRequest } from "./auth.ts";
 
 // Both entry points import this file from the existing hubspot-webhook mount.
 // No additional Docker bind mount is required.
@@ -122,17 +123,6 @@ const HUBSPOT_ENUM_OPTIONS: Record<string, ReadonlySet<string>> = {
   ]),
 };
 
-
-// Hash comparison avoids secret-length and prefix timing leaks.
-async function equalSecret(a: string, b: string): Promise<boolean> {
-  const digest = async (value: string): Promise<Uint8Array> =>
-    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
-  const x = await digest(a);
-  const y = await digest(b);
-  let result = 0;
-  for (let i = 0; i < x.length; i++) result |= x[i] ^ y[i];
-  return result === 0;
-}
 
 function json(body: unknown, status = 200): Response {
   return Response.json(body, {
@@ -476,10 +466,11 @@ function parsePayload(value: unknown): RequestPayload {
 export function serveManual(direction: Direction): void {
   Deno.serve(async (request: Request): Promise<Response> => {
     if (request.method !== "POST") return json({ error: "POST only" }, 405);
-    const supplied = request.headers.get("Authorization")?.match(/^Bearer (.+)$/)?.[1] ?? "";
-    const authorizedKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!supplied || !authorizedKey || !await equalSecret(supplied, authorizedKey)) {
-      return json({ error: "Unauthorized: server-side service role token required" }, 401);
+    if (!await isAuthorizedSecretRequest(request, {
+      SUPABASE_SECRET_KEYS: Deno.env.get("SUPABASE_SECRET_KEYS"),
+      SUPABASE_SECRET_KEY: Deno.env.get("SUPABASE_SECRET_KEY"),
+    })) {
+      return json({ error: "Unauthorized: valid Supabase secret apikey required" }, 401);
     }
 
     let db: Pg | undefined;

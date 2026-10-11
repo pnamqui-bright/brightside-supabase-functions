@@ -1,9 +1,14 @@
 {
   "tasks": {
-    "check": "deno check functions/hubspot-webhook/index.ts functions/hubspot-manual-push/index.ts"
+    "check": "deno check functions/hubspot-webhook/index.ts functions/hubspot-manual-push/index.ts functions/hubspot-bulk-pull/index.ts"
   },
   "compilerOptions": {
-    "lib": ["deno.ns", "dom", "dom.iterable", "esnext"],
+    "lib": [
+      "deno.ns",
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "strict": true
   }
 }

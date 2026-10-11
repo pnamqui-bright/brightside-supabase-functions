@@ -1,18 +1,23 @@
-# Agent instructions — development repository
+# Codex instructions — Edge Functions SOURCE repository
 
-This repository contains source code for self-hosted Supabase Edge Functions. **Never assume this checkout is on the production server.** The default is an isolated development workspace.
+This repository is portable development source for Brightside's self-hosted Supabase Edge Functions. **Never assume a checkout is running on the deployed server.** Development/test is the default. The server's parent-level AGENTS.md separately governs its production Supabase deployment; do not duplicate or override it.
 
-- The authoritative production infrastructure instructions live in the server's separate parent-level AGENTS.md. Do not copy that file into this repository or infer deployment access from this repository.
-- Never deploy, restart containers, modify production Compose files, update database schemas, or write live HubSpot/Supabase CRM records without explicit user authorization and verified environment context.
-- Production target, when explicitly approved: self-hosted Supabase at https://supbase.brightsidebrandstudio.com. Treat this as a **target identifier**, not as evidence you're running there.
-- Keep Supabase's installed `volumes/functions/main/index.ts` and its original directory mount intact. This repo owns custom function subdirectories only.
-- Secrets belong in Supabase Vault. Never commit, print, or transmit decrypted secrets to logs or examples. Use restricted server-side access.
-- Any functions implementing CRM synchronization must be safe by default, authenticated, idempotent, tested with fixtures, and explicitly enabled.
-- HubSpot → Supabase synchronization is automatic once deliberately configured; Supabase → HubSpot is **manual only**. No automatic outbound syncing or hidden scheduled jobs.
-- Skip contacts without a company association **in both directions**. Do not invent associations or stage orphan records.
-- For shared writable properties, use latest-per-field-update-wins only where reliable field-level timestamps are known; otherwise report conflicts or skip instead of claiming precision.
-- Never automatically overwrite legal consent, source provenance, computed prospect scores, IDs, or unmapped properties.
-- Keep PRs and commits narrowly scoped. Document behavior and production prerequisites honestly.
+## Deployment rules
+- Never push code to a running server, restart Docker, change Docker Compose, modify production tables, execute a manual sync in "apply" mode, or write CRM records without explicit user authorization and a verified production context.
+- Production, if explicitly authorized, is the self-hosted service identified as https://supbase.brightsidebrandstudio.com. Its address does not mean this checkout has access to production.
+- Preserve Supabase's original \`volumes/functions/main/index.ts\` router and base bind mounts. Only custom function subdirectories are owned by this repo.
+- The manual outbound endpoint imports shared code from \`hubspot-webhook/lib\`; keep both sibling bind mounts deployed.
+- Before shipping, run \`deno task check\` and \`deno test tests/\`. These are unit/static checks and do not establish live compatibility.
 
-## Initial state
-The initial `hubspot-webhook` and `hubspot-manual-push` entrypoints intentionally return 501. Implementing these is future work, not an implicit part of repository setup.
+## Integration contract
+- **Both directions are MANUAL ONLY for now.** \`hubspot-webhook\` is a historical name; it is not configured as an automatic webhook.
+- The only authorized caller is a trusted backend/admin with the service-role JWT; default operation is preview. Apply requires exact IDs, \`previewHash\`, and \`confirm: "APPLY"\`.
+- Never log, commit, return or duplicate decrypted secrets. HubSpot credentials belong in database Vault under \`HUBSPOT_ACCESS_TOKEN\`.
+- Only sync records with exact HubSpot Supabase external ID links. Do not create companies or contacts; do not match by guesswork.
+- **Skip contacts without a verified company association in both systems.** No orphan staging, arbitrary association creation, or inferred associations.
+- Never modify HubSpot marketing consent/legal basis, unrelated associations or properties, or other unmapped fields.
+- HubSpot property timestamps are available, but Supabase currently has record-level timestamps only. Apply conservative conflict rules and skip uncertain overwrites; do not claim exact per-field latest-update-wins.
+- Preserve existing related records and IDs. Inbound child-field updates need one existing unambiguous child row. Empty source fields never delete destination values.
+- No automatic inbound webhook subscriptions, no triggers, no cron, and no background data push.
+
+See \`docs/manual-sync.md\` for request contracts and \`docs/hubspot-sync-contract.md\` for field mappings/limitations.

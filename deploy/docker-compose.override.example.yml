@@ -1,0 +1,17 @@
+# Example to MERGE into <supabase-deployment>/docker-compose.override.yml
+# Assumes repo checkout is a sibling of the self-hosted Supabase directory.
+# Check exact service names and mount paths for your installed release.
+# Do not discard the existing upstream /home/deno/functions volume.
+
+services:
+  functions:
+    volumes:
+      - ../brightside-supabase-functions/functions/hubspot-webhook:/home/deno/functions/hubspot-webhook:ro
+      - ../brightside-supabase-functions/functions/hubspot-manual-push:/home/deno/functions/hubspot-manual-push:ro
+
+  # Optional: make custom function source visible in self-hosted Studio.
+  # Remove if your Studio version does not mount edge function sources here.
+  studio:
+    volumes:
+      - ../brightside-supabase-functions/functions/hubspot-webhook:/app/edge-functions/hubspot-webhook:ro
+      - ../brightside-supabase-functions/functions/hubspot-manual-push:/app/edge-functions/hubspot-manual-push:ro

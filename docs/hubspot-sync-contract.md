@@ -38,7 +38,7 @@ For two distinct, populated values, compare HubSpot's property change time to Su
 ## Security and operations
 
 - The HubSpot API token is already stored in database Vault as `HUBSPOT_ACCESS_TOKEN`. The Edge Functions query it through a direct Postgres connection using `SUPABASE_DB_URL`. The actual token is never returned.
-- A valid `Authorization: Bearer <service-role-JWT>` is required on each request and verified in the handler against `SUPABASE_SERVICE_ROLE_KEY`. Never invoke from a web browser or ship that token to clients.
+- A valid self-hosted Supabase `sb_secret_...` API key is required on the `apikey` header and is verified in the handler against the configured `SUPABASE_SECRET_KEYS` (backed by `.env` `SUPABASE_SECRET_KEY`). Do not send opaque keys as Bearer JWTs. Never invoke from a web browser or ship this privileged key to clients. The self-hosted edge router needs `FUNCTIONS_VERIFY_JWT=false` for the opaque header; the function still authenticates callers independently.
 - Reads are scoped to fixed `brightside` tables/views and HubSpot CRM endpoints. Inbound Postgres changes use one transaction per record and check the local modification stamp before writing. Outbound HubSpot PATCH is idempotent for repeated property assignments but is not a cross-system atomic transaction.
 - HubSpot dropdown option allowlists were checked against current portal property definitions; Supabase values that do not match are skipped and shown in preview, not sent in a failing batch. Update the allowlists if HubSpot dropdown options change.
 - The functions do not make any call or change anything until a **manual** authorized invocation.

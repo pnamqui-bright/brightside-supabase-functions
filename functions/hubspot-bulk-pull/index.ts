@@ -250,7 +250,7 @@ function planRecord(
     report.skipped.push({ objectType: entity, hubspotId, reason: match.issue });
     return null;
   }
-  const localId = match.id || "hubspot-" + entity.slice(0, -1) + "-" + hubspotId;
+  const localId = match.id || "hubspot-" + (entity === "companies" ? "company" : "contact") + "-" + hubspotId;
   if (claimed.has(localId)) {
     summary.skipped++;
     report.skipped.push({ objectType: entity, hubspotId, supabaseId: localId, reason: "multiple_hubspot_records_match_one_supabase_record" });

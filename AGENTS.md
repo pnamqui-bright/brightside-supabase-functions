@@ -4,14 +4,14 @@ This repository is portable development source for Brightside's self-hosted Supa
 
 ## Deployment rules
 - Never push code to a running server, restart Docker, change Docker Compose, modify production tables, execute a manual sync in "apply" mode, or write CRM records without explicit user authorization and a verified production context.
-- Production, if explicitly authorized, is the self-hosted service identified as https://supbase.brightsidebrandstudio.com. Its address does not mean this checkout has access to production.
+- Production, if explicitly authorized, is the self-hosted service identified as https://supabase.brightsidebrandstudio.com. Its address does not mean this checkout has access to production.
 - Preserve Supabase's original `volumes/functions/main/index.ts` router and base bind mounts. Only custom function subdirectories are owned by this repo.
 - The manual outbound endpoint imports shared code from `hubspot-webhook/lib`; keep both sibling bind mounts deployed.
 - Before shipping, run `deno task check` and `deno test tests/`. These are unit/static checks and do not establish live compatibility.
 
 ## Integration contract
 - **Both directions are MANUAL ONLY for now.** `hubspot-webhook` is a historical name; it is not configured as an automatic webhook.
-- The only authorized caller is a trusted backend/admin with the service-role JWT; default operation is preview. Apply requires exact IDs, `previewHash`, and `confirm: "APPLY"`.
+- The only authorized caller is a trusted backend/admin with the opaque Supabase `sb_secret_...` API key on the `apikey` header, never `Authorization: Bearer`. In self-hosted Docker Compose, `SUPABASE_SECRET_KEY` becomes `SUPABASE_SECRET_KEYS` for Edge Runtime. Auth is verified in the handler. Default operation is preview; apply requires exact IDs, `previewHash`, and `confirm: "APPLY"`.
 - Never log, commit, return or duplicate decrypted secrets. HubSpot credentials belong in database Vault under `HUBSPOT_ACCESS_TOKEN`.
 - Only sync records with exact HubSpot Supabase external ID links. Do not create companies or contacts; do not match by guesswork.
 - **Skip contacts without a verified company association in both systems.** No orphan staging, arbitrary association creation, or inferred associations.

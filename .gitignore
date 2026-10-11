@@ -1,0 +1,25 @@
+# Secrets and workstation configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Local tooling
+.DS_Store
+.vscode/
+.idea/
+node_modules/
+coverage/
+dist/
+.tmp/
+.cache/
+deno.lock
+
+# Never check in upstream production deployment artifacts
+supabase/
+volumes/

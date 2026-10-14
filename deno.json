@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "check": "deno check functions/hubspot-webhook/index.ts functions/hubspot-manual-push/index.ts functions/hubspot-bulk-pull/index.ts"
+    "check": "deno check functions/hubspot-webhook/index.ts functions/hubspot-manual-push/index.ts functions/hubspot-bulk-pull/index.ts functions/hubspot-bulk-plan/index.ts functions/hubspot-bulk-execute/index.ts"
   },
   "compilerOptions": {
     "lib": [

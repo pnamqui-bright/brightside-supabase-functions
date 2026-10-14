@@ -289,8 +289,12 @@ def do_apply(args: argparse.Namespace, base: str, key: str) -> int:
             raise CliError("Invalid executable operation in plan")
     work = [{**op, "force": False} for op in plan["operations"]]
     if args.force:
+        overridable = {"no_sync_baseline_conflict", "both_sides_changed_since_last_sync",
+                       "missing_modification_timestamp", "unexplained_divergence_since_last_sync"}
         for conflict in plan["conflicts"]:
             if conflict.get("entity") not in ("companies", "contacts"): continue
+            # --force bypasses timestamp conflicts, NEVER identity/matching conflicts.
+            if conflict.get("reason") not in overridable: continue
             ident = conflict.get("hubspotId" if args.force == "pull" else "supabaseId")
             if isinstance(ident, str) and ident:
                 work.append({"entity": conflict["entity"], "id": ident, "direction": args.force, "force": True})

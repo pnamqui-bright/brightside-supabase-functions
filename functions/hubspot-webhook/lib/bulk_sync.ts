@@ -362,8 +362,9 @@ async function planPage(db: Pg, token: string, input: Row): Promise<Row> {
   if (entity !== "companies" && entity !== "contacts") fail("objectType must be companies or contacts");
   const source = input.source ?? "hubspot";
   if (source !== "hubspot" && source !== "supabase") fail("source must be hubspot or supabase");
-  const limit = input.limit ?? (source === "hubspot" ? PAGE_SIZE : 500);
-  if (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > (source === "hubspot" ? PAGE_SIZE : 500)) fail("invalid page limit");
+  const rawLimit = input.limit ?? (source === "hubspot" ? PAGE_SIZE : 500);
+  if (typeof rawLimit !== "number" || !Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > (source === "hubspot" ? PAGE_SIZE : 500)) fail("invalid page limit");
+  const limit = rawLimit;
   const cursor = s(input.cursor);
   if (source === "supabase") {
     const key = KEY[entity];

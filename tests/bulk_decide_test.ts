@@ -24,9 +24,9 @@ Deno.test("local-only update is push", () => {
   const x = evaluate([phone], tuesday, monday, monday);
   if (x.status !== "eligible" || x.push.length !== 1 || x.pull.length) throw Error(JSON.stringify(x));
 });
-Deno.test("blank source cannot erase populated destination", () => {
+Deno.test("blank pull source never deletes Supabase values", () => {
   const x = evaluate([{property:"phone",local:"123",remote:""}],monday,monday,monday);
-  if (x.pull.length || x.push.length) throw Error(JSON.stringify(x));
+  if (x.pull.length || x.push.length !== 1) throw Error(JSON.stringify(x));
 });
 Deno.test("push-only mapping never pulls", () => {
   const x = evaluate([{property:"score",local:"80",remote:"50",pushOnly:true}],"","","");

@@ -21,3 +21,13 @@ This repository is portable development source for Brightside's self-hosted Supa
 - No automatic inbound webhook subscriptions, no triggers, no cron, and no background data push.
 
 See `docs/manual-sync.md` for request contracts and `docs/hubspot-sync-contract.md` for field mappings/limitations.
+
+## New bulk-only workflow (Issue #1)
+
+The primary CLI interface is `hubspot-sync plan | apply | resume` for **full dataset** reconciliation; there is no new targeted/single-ID user interface. The `hubspot-bulk-plan` endpoint is read-only, and `hubspot-bulk-execute` accepts bounded ID batches exclusively as an internal CLI transport. Keep the legacy five-ID endpoints working; their preview/hash contract above is legacy-only.
+
+The new inbound **bulk** path may create unmatched HubSpot objects in Supabase, reusing deterministic IDs and requiring verified contact-company links. It **never** creates outbound HubSpot objects. The original integration contract's no-creation rule applies to the legacy targeted endpoints, not this approved bulk feature.
+
+Record conflicts are **whole-record**: if both sides changed since that record's successful sync, skip and report it, even when different fields changed. When the baseline is NULL, differing populated bidirectional values are also conflicts; equal values and safe blank fills may bootstrap. No column-level timestamps/merges. `--force=pull` or `--force=push` is an explicit directional override, not conflict resolution.
+
+The proposed `migrations/20261013_bulk_sync_baseline.sql` adds one nullable `hubspot_last_synced_at` to each parent and updates the existing timestamp trigger. **Do not apply this migration or deploy the Edge Functions to production without separate explicit approval.** See `docs/bulk-sync.md` for diagrams and operational details.

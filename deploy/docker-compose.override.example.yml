@@ -9,6 +9,8 @@ services:
       - ../brightside-supabase-functions/functions/hubspot-webhook:/home/deno/functions/hubspot-webhook:ro
       - ../brightside-supabase-functions/functions/hubspot-manual-push:/home/deno/functions/hubspot-manual-push:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-pull:/home/deno/functions/hubspot-bulk-pull:ro
+      - ../brightside-supabase-functions/functions/hubspot-bulk-plan:/home/deno/functions/hubspot-bulk-plan:ro
+      - ../brightside-supabase-functions/functions/hubspot-bulk-execute:/home/deno/functions/hubspot-bulk-execute:ro
 
   # Optional: make custom function source visible in self-hosted Studio.
   # Remove if your Studio version does not mount edge function sources here.
@@ -17,3 +19,5 @@ services:
       - ../brightside-supabase-functions/functions/hubspot-webhook:/app/edge-functions/hubspot-webhook:ro
       - ../brightside-supabase-functions/functions/hubspot-manual-push:/app/edge-functions/hubspot-manual-push:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-pull:/app/edge-functions/hubspot-bulk-pull:ro
+      - ../brightside-supabase-functions/functions/hubspot-bulk-plan:/app/edge-functions/hubspot-bulk-plan:ro
+      - ../brightside-supabase-functions/functions/hubspot-bulk-execute:/app/edge-functions/hubspot-bulk-execute:ro

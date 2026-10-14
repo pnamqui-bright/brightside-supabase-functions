@@ -27,3 +27,11 @@ volumes/
 # Python CLI tooling
 __pycache__/
 *.py[cod]
+
+# Manual bulk sync worklists may include customer contact identifiers
+plan.json
+checkpoint.json
+sync-report.json
+plan-*.json
+checkpoint-*.json
+sync-report-*.json

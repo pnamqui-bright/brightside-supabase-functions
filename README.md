@@ -1,5 +1,13 @@
 # Brightside Supabase Edge Functions
 
+> **New on the Issue #1 feature branch:** manual **BULK-ONLY** bidirectional HubSpot ↔ Supabase synchronization. The supported CLI is now `hubspot-sync plan`, `hubspot-sync apply`, and `hubspot-sync resume`. There is no single-record/`--id` user workflow. Default bulk runs skip and report whole-record conflicts; `--force=pull` or `--force=push` is an explicit directional override. See **[the bulk sync guide](docs/bulk-sync.md)** for diagrams, limits, CLI usage, migration, and prerequisites. **Nothing in this branch is deployed and its migration is not applied.**
+
+**Before using the bulk sync**, separately review and approve `migrations/20261013_bulk_sync_baseline.sql` (two nullable baseline columns and one trigger adjustment). The existing manual endpoints below remain for compatibility; the following original README sections describe their legacy five-record interface.
+
+---
+
+# Brightside Supabase Edge Functions
+
 Manually operated HubSpot ↔ Supabase synchronization for Brightside's **self-hosted** Supabase instance.
 
 The source code lives here, independently of the production Supabase Docker deployment. Cloning this repository onto a workstation **does not** mean Codex is working on the deployed server.

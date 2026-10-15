@@ -112,9 +112,9 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE
 AS $enum$
   SELECT CASE
     WHEN nullif(btrim(p_value), '') IS NULL THEN true
-    WHEN 'marketing_maturity_supabase' THEN btrim(p_value) = ANY (ARRAY['Upper_T2', 'T2', 'Unknown', 'T3', 'Lower_T4', 'T1']::text[])
-    WHEN 'revenue_tier' THEN btrim(p_value) = ANY (ARRAY['T4', 'T2', 'T3', 'T1', 'T0', 'Mega', 'Unknown']::text[])
-    WHEN 'icp_vertical' THEN btrim(p_value) = ANY (ARRAY['Plumbing contractors', 'Electrical contractors', 'Landscaping companies', 'Commercial cleaning companies', 'Massage therapy clinics', 'Personal training studios', 'Acupuncture clinics', 'Chiropractic clinics', 'Roofing contractors', 'Event staging companies', 'Tent rental companies', 'Event lighting companies', 'Event production companies', 'Party rental companies', 'Event entertainment companies', 'AV production companies', 'Wedding planners', 'Counselling clinics', 'Yoga studios', 'Pilates studios', 'Medical spas', 'Aesthetic clinics', 'hvac_contractor', 'Physiotherapy clinics', 'Wedding venues', 'Banquet halls', 'Event venues', 'Event rental companies', 'Event DJ companies', 'Psychology clinics', 'Naturopathic clinics', 'Corporate event planners']::text[])
+    WHEN p_property = 'marketing_maturity_supabase' THEN btrim(p_value) = ANY (ARRAY['Upper_T2', 'T2', 'Unknown', 'T3', 'Lower_T4', 'T1']::text[])
+    WHEN p_property = 'revenue_tier' THEN btrim(p_value) = ANY (ARRAY['T4', 'T2', 'T3', 'T1', 'T0', 'Mega', 'Unknown']::text[])
+    WHEN p_property = 'icp_vertical' THEN btrim(p_value) = ANY (ARRAY['Plumbing contractors', 'Electrical contractors', 'Landscaping companies', 'Commercial cleaning companies', 'Massage therapy clinics', 'Personal training studios', 'Acupuncture clinics', 'Chiropractic clinics', 'Roofing contractors', 'Event staging companies', 'Tent rental companies', 'Event lighting companies', 'Event production companies', 'Party rental companies', 'Event entertainment companies', 'AV production companies', 'Wedding planners', 'Counselling clinics', 'Yoga studios', 'Pilates studios', 'Medical spas', 'Aesthetic clinics', 'hvac_contractor', 'Physiotherapy clinics', 'Wedding venues', 'Banquet halls', 'Event venues', 'Event rental companies', 'Event DJ companies', 'Psychology clinics', 'Naturopathic clinics', 'Corporate event planners']::text[])
     ELSE true
   END;
 $enum$;

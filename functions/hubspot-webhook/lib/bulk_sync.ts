@@ -4,6 +4,7 @@
 import postgres from "npm:postgres@3.4.7";
 import { isAuthorizedSecretRequest } from "./auth.ts";
 import { evaluate, populated, type Direction, type Pair } from "./bulk_decide.ts";
+import { buildCompanyMerges, canonicalCompanyId } from "./bulk_company_identity.ts";
 
 type Entity = "companies" | "contacts";
 type Json = Record<string, unknown>;
@@ -14,6 +15,7 @@ type Local = { id: string; data: Row; stamp: string; baseline: string; companyId
 type Snapshot = {
   companies: Map<string, Local>;
   contacts: Map<string, Local>;
+  companyMerges: Map<string, string>;
   children: Map<string, Map<string, Row[]>>;
   domains: Map<string, Set<string>>;
   emails: Map<string, Set<string>>;
@@ -162,8 +164,8 @@ async function vaultToken(db: Pg): Promise<string> {
   return token;
 }
 
-async function loadSnapshot(db: Pg, entity: Entity): Promise<Snapshot> {
-  const snap: Snapshot = { companies: new Map(), contacts: new Map(), children: new Map(), domains: new Map(), emails: new Map() };
+export async function loadSnapshot(db: Pg, entity: Entity): Promise<Snapshot> {
+  const snap: Snapshot = { companies: new Map(), contacts: new Map(), companyMerges: new Map(), children: new Map(), domains: new Map(), emails: new Map() };
   const types: Entity[] = entity === "contacts" ? ["companies", "contacts"] : ["companies"];
   for (const typ of types) {
     const cols = typ === "companies"
@@ -178,6 +180,14 @@ async function loadSnapshot(db: Pg, entity: Entity): Promise<Snapshot> {
       });
     }
   }
+  const mergedRows = await db.unsafe(
+    "select from_company_external_id, to_company_external_id from brightside.company_relationships where relationship_type = $1",
+    ["merged_into"],
+  );
+  snap.companyMerges = buildCompanyMerges(mergedRows.map((row) => ({
+    from_company_external_id: row.from_company_external_id,
+    to_company_external_id: row.to_company_external_id,
+  })), new Set(snap.companies.keys()));
   const tables = entity === "companies"
     ? ["company_domains", "company_websites", "company_phone_numbers", "company_locations"]
     : ["company_domains", "company_websites", "contact_channels"];
@@ -189,17 +199,18 @@ async function loadSnapshot(db: Pg, entity: Entity): Promise<Snapshot> {
       const list = byId.get(id) ?? [];
       list.push(row as Row);
       byId.set(id, list);
-      if (table === "company_domains") index(snap.domains, normalizeDomain(row.domain), id);
-      if (table === "company_websites") index(snap.domains, normalizeDomain(row.website_url), id);
+      if (table === "company_domains") index(snap.domains, normalizeDomain(row.domain), canonicalCompanyId(id, snap.companyMerges));
+      if (table === "company_websites") index(snap.domains, normalizeDomain(row.website_url), canonicalCompanyId(id, snap.companyMerges));
       if (table === "contact_channels") index(snap.emails, s(row.email).toLowerCase(), id);
     }
     snap.children.set(table, byId);
   }
   return snap;
 }
-function matchLocal(entity: Entity, remote: Row, snap: Snapshot): Match {
+export function matchLocal(entity: Entity, remote: Row, snap: Snapshot): Match {
   const props = (remote.properties ?? {}) as Row;
-  const link = s(props[entity === "companies" ? "supabase_company_id" : "supabase_contact_id"]);
+  const rawLink = s(props[entity === "companies" ? "supabase_company_id" : "supabase_contact_id"]);
+  const link = entity === "companies" ? canonicalCompanyId(rawLink, snap.companyMerges) : rawLink;
   const domain = entity === "companies" ? [normalizeDomain(props.domain), normalizeDomain(props.website)] : [];
   const natural = entity === "companies" ? uniqueMatch(snap.domains, domain)
     : uniqueMatch(snap.emails, [s(props.email).toLowerCase()]);
@@ -321,7 +332,7 @@ function makeCandidate(
     const company = parentCompany(remote, snap, associated);
     if (company.reason) { candidate.reason = company.reason; return candidate; }
     candidate.companyId = company.id;
-    if (local && local.companyId !== company.id) {
+    if (local && canonicalCompanyId(local.companyId, snap.companyMerges) !== company.id) {
       candidate.reason = "mismatched_company_association"; return candidate;
     }
   }
@@ -375,6 +386,15 @@ function publicCandidate(c: Candidate): Row {
     lastSyncedAt: c.local?.baseline ?? null,
   };
 }
+export function supabaseInventorySql(entity: Entity): string {
+  const key = KEY[entity];
+  const mergedExclusion = entity === "companies"
+    ? " and not exists (select 1 from brightside.company_relationships rel" +
+      " where rel.relationship_type = 'merged_into' and rel.from_company_external_id = brightside.companies.company_external_id)"
+    : "";
+  return "select " + key + " as id from brightside." + entity + " where " + key + " > $1" +
+    mergedExclusion + " order by " + key + " limit $2";
+}
 async function planPage(db: Pg, token: string, input: Row): Promise<Row> {
   const entity = input.objectType;
   if (entity !== "companies" && entity !== "contacts") fail("objectType must be companies or contacts");
@@ -386,7 +406,7 @@ async function planPage(db: Pg, token: string, input: Row): Promise<Row> {
   const cursor = s(input.cursor);
   if (source === "supabase") {
     const key = KEY[entity];
-    const rows = await db.unsafe("select " + key + " as id from brightside." + entity + " where " + key + " > $1 order by " + key + " limit $2", [cursor, limit]);
+    const rows = await db.unsafe(supabaseInventorySql(entity), [cursor, limit]);
     const ids = rows.map((r) => s(r.id));
     return { source, objectType: entity, ids, nextCursor: ids.length === limit ? ids[ids.length - 1] : null };
   }

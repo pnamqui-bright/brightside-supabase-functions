@@ -314,7 +314,7 @@ function fieldValue(raw: unknown, field: Field): string {
   const dt = Date.parse(value);
   return Number.isFinite(dt) ? new Date(dt).toISOString() : "";
 }
-function makeCandidate(
+export function makeCandidate(
   entity: Entity, remote: Row, snap: Snapshot, views: Map<string, Row[]>,
   associated: Map<string, Row>, force: Direction | null = null,
 ): Candidate {

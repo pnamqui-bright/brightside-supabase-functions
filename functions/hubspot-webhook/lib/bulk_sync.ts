@@ -124,7 +124,13 @@ function uniqueMatch(index: Map<string, Set<string>>, keys: string[]): { id: str
   if (ids.size > 1) return { id: "", reason: "ambiguous_domain_or_email_match" };
   return { id: [...ids][0] ?? "" };
 }
-function rowStamp(value: unknown): string {
+export function rowStamp(value: unknown): string {
+  // postgres.js returns timestamptz as a Date; String(Date) discards milliseconds.
+  // The locking query uses ::text and retains fractions. Compare both at the
+  // same millisecond precision to avoid false "changed during execution" errors.
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.toISOString() : "";
+  }
   const valueText = s(value);
   if (!valueText) return "";
   const t = Date.parse(valueText);

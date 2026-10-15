@@ -267,12 +267,24 @@ function parentCompany(contact: Row, snap: Snapshot, associated: Map<string, Row
   if (matched.size !== 1) return { id: "", reason: "ambiguous_or_unmatched_company_association" };
   return { id: [...matched][0] };
 }
+// For a single ID, equality lets PostgreSQL push the filter through the export
+// view's scoring join. ANY(text[]) caused a full score aggregation (~16s/record).
+// Retain the multi-ID query used by the planner.
+export function exportViewLookup(entity: Entity, localIds: string[]) {
+  const view = entity === "companies" ? "hubspot_companies_export" : "hubspot_contacts_export";
+  const key = entity === "companies" ? "Supabase Company ID" : "Supabase Contact ID";
+  const single = localIds.length === 1;
+  return {
+    key,
+    sql: 'select * from brightside.' + view + ' where "' + key + (single ? '" = $1' : '" = any($1::text[])'),
+    params: single ? [localIds[0]] : [localIds],
+  };
+}
 async function viewRows(db: Pg, entity: Entity, localIds: string[]): Promise<Map<string, Row[]>> {
   const map = new Map<string, Row[]>();
   if (!localIds.length) return map;
-  const view = entity === "companies" ? "hubspot_companies_export" : "hubspot_contacts_export";
-  const key = entity === "companies" ? "Supabase Company ID" : "Supabase Contact ID";
-  const rows = await db.unsafe('select * from brightside.' + view + ' where "' + key + '" = any($1::text[])', [localIds]);
+  const { key, sql, params } = exportViewLookup(entity, localIds);
+  const rows = await db.unsafe(sql, params);
   for (const row of rows) {
     const id = s(row[key]);
     const list = map.get(id) ?? [];

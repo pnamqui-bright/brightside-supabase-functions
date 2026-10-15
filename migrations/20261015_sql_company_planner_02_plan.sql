@@ -51,7 +51,7 @@ remote AS MATERIALIZED (
       'marketing_maturity_supabase', coalesce(btrim(h.marketing_maturity_supabase), ''),
       'icp_vertical', coalesce(btrim(h.icp_vertical), ''),
       'revenue_tier', coalesce(btrim(h.revenue_tier), ''),
-      'last_prospect_scan', coalesce(btrim(h.last_prospect_scan), '')
+      'last_prospect_scan', brightside._sql_hubspot_iso(h.last_prospect_scan)
     ) AS remote_fields
   FROM hubspot."Companies" h
   WHERE h.id IS NOT NULL
@@ -69,6 +69,7 @@ local_keys AS MATERIALIZED (
     UNION ALL
     SELECT company_external_id, website_url AS value FROM brightside.company_websites
   ) source
+  JOIN brightside.companies parent ON parent.company_external_id = source.company_external_id
   WHERE brightside._sql_hubspot_domain(source.value) IS NOT NULL
 ),
 remote_keys AS (
@@ -256,7 +257,7 @@ WHERE p_hubspot_limit IS NULL
   AND NOT EXISTS (SELECT 1 FROM matched m WHERE m.resolved_id = local.supabase_id);
 $preview$;
 
--- Persist immutable plan decisions; not CRM data, not an apply queue.
+-- Persist plan decisions for review; not CRM data, not an apply queue.
 CREATE TABLE IF NOT EXISTS brightside.hubspot_sql_company_plan_runs (
   run_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -289,7 +290,7 @@ CREATE TABLE IF NOT EXISTS brightside.hubspot_sql_company_plan_items (
 CREATE INDEX IF NOT EXISTS hubspot_sql_company_plan_items_status_idx
   ON brightside.hubspot_sql_company_plan_items (run_id, status);
 
--- Manual invocation only. A committed plan is a snapshot for human review.
+-- Manual invocation only. A committed plan is a historical snapshot for human review.
 -- Future Apply MUST fetch current values and revalidate timestamps/conflicts.
 CREATE OR REPLACE FUNCTION brightside.hubspot_sql_create_company_plan()
 RETURNS uuid LANGUAGE plpgsql VOLATILE
@@ -337,9 +338,9 @@ $create$;
 -- The executable worklist is IDs + directions only.
 CREATE OR REPLACE VIEW brightside.hubspot_sql_company_plan_worklist
 WITH (security_invoker = true) AS
-SELECT i.run_id, i.hubspot_id, i.supabase_id, direction
+SELECT i.run_id, i.hubspot_id, i.supabase_id, d.direction
 FROM brightside.hubspot_sql_company_plan_items i
-CROSS JOIN LATERAL unnest(i.directions) AS direction
+CROSS JOIN LATERAL unnest(i.directions) AS d(direction)
 WHERE i.status = 'work';
 
 REVOKE ALL ON FUNCTION brightside.hubspot_sql_company_preview(integer) FROM PUBLIC;

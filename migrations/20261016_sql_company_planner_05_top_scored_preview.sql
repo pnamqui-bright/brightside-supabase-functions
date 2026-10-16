@@ -27,6 +27,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql VOLATILE
 AS $topscored$
+#variable_conflict use_column
 DECLARE
   v_selected integer;
 BEGIN

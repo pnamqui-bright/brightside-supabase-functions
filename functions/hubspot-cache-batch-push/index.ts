@@ -157,7 +157,9 @@ async function tokenFromVault(db: Pg): Promise<string> {
 }
 
 function readResults(remote: Json, expected: Candidate[]): Map<string, Json> {
-  if (remote.status !== "COMPLETE" || value(remote.numErrors) !== "" && Number(remote.numErrors) !== 0 ||
+  if (remote.status !== "COMPLETE" ||
+      (value(remote.numErrors) !== "" && Number(remote.numErrors) !== 0) ||
+      (Array.isArray(remote.errors) && remote.errors.length > 0) ||
       !Array.isArray(remote.results)) {
     throw new Error("HubSpot batch read incomplete; cache unchanged");
   }
@@ -311,6 +313,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       // failures. Never record delivered markers without a complete, exact response.
       if (updated.status !== "COMPLETE" ||
           Number(updated.numErrors ?? 0) !== 0 ||
+          (Array.isArray(updated.errors) && updated.errors.length > 0) ||
           !Array.isArray(updated.results)) {
         throw new Error("HubSpot batch update incomplete; refresh before retry");
       }

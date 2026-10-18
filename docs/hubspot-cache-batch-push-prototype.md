@@ -5,7 +5,7 @@
 ## Contract
 
 New manually invoked Edge Function: `hubspot-cache-batch-push`.
-POST preview uses the Supabase database only; it makes no HubSpot API requests or writes:
+POST preview refreshes the selected IDs through Supabase's targeted reconciliation functions. This **reads the HubSpot foreign wrapper and writes refreshed cache rows**; it does not send HubSpot CRM updates or modify operational Supabase records:
 
 ```json
 {"entity":"companies","limit":50,"action":"preview"}
@@ -14,10 +14,10 @@ POST preview uses the Supabase database only; it makes no HubSpot API requests o
 Explicit apply, when separately approved and deployed:
 
 ```json
-{"entity":"companies","limit":50,"after":"","action":"apply","previewHash":"<hash returned by preview>","confirm":"APPLY"}
+{"entity":"companies","limit":50,"after":"","action":"apply","selectedKeys":["s:V31-C0032"],"previewHash":"<hash returned by preview>","confirm":"APPLY"}
 ```
 
-Use the same schema for `contacts`. Batch size 1–100. `after` is an optional sync-key cursor; reuse the exact cursor and limit between a preview and its apply. Success receipts allow successive calls to select the next pending batch without resending the previous successful batch. A returned `nextCursor` lets the operator advance past blocked candidates.
+Use the same schema for `contacts`. Batch size 1–100. `after` is an optional sync-key cursor; reuse the **exact cursor, limit, and full ordered `selectedKeys` array returned by preview** when applying that preview. Apply refuses requests without `selectedKeys`. An empty eligible batch is possible if the targeted refresh invalidates all selected records. A returned `nextCursor` is based on originally selected IDs, not the filtered eligible rows, so no unchecked replacement records enter the batch. Successful delivery receipts prevent unchanged rows from being sent again.
 
 Calls require an opaque Supabase `sb_secret_` key in the `apikey` request header. The runtime obtains the HubSpot token from Supabase Vault. Apply is disabled unless the server-side `HUBSPOT_CACHE_PUSH_ENABLE_WRITES=true` flag is explicitly configured; the default is disabled.
 
@@ -33,13 +33,15 @@ Calls require an opaque Supabase `sb_secret_` key in the `apikey` request header
 
 ## Verification and idempotency
 
-1. Preview returns ordered record/property changes, snapshot versions, problem flags, a SHA-256 previewHash and optional nextCursor. Preview does not contact HubSpot.
-2. Apply recomputes the same previewHash from current cache, and requires `confirm=APPLY` plus the separately enabled write flag.
-3. Check the operational Supabase parent timestamp equals the cached source timestamp; also recheck just before any HubSpot write.
-4. Batch-read existing HubSpot records to compare live values and `updatedAt` against the cache version. Reject newer nonblank values and unknown/changed timestamps; mark already-aligned values without patching.
+1. Preview first selects up to N cached candidate keys and calls `brightside.refresh_hubspot_company_sync_cache(supabase_ids,hubspot_ids)` or its contact equivalent **once for exactly those keys** (up to 100 pairs / 200 ID arguments). These procedures read updated Supabase and HubSpot values via the existing FDW. The refresh modifies only the cache, not HubSpot CRM or operational Supabase records. It does not run a full seed.
+2. After refresh, preview re-runs all eligibility, source-freshness and property-difference checks **only against those selected keys**, drops new conflicts/missing/already-aligned records without filling the batch from later keys, and returns `selectedKeys`, `refreshedCount`, `eligibleCount`, `noLongerEligible`, the SHA-256 `previewHash`, and `nextCursor`.
+3. Apply requires the reviewed exact `selectedKeys`, `after`, `limit`, `previewHash`, `confirm=APPLY` and the separately enabled write flag. It refreshes **the same selected records again**, re-evaluates eligibility, and rejects the apply if the digest of the refreshed batch differs from the preview. It does not swap in any newly eligible or different records.
+4. Check the operational Supabase parent timestamp equals the freshly cached source timestamp; also recheck just before any HubSpot write. Batch-read existing HubSpot records to compare live values and `updatedAt` against the new cached version. Reject newer nonblank values and unknown/changed timestamps; mark already-aligned values without patching.
 5. Use HubSpot v3 batch/update (maximum 100 inputs). Do not automatically retry an ambiguous POST failure.
 6. Only an exact, complete HubSpot success response may advance the new `hubspot_last_applied_version` and `hubspot_last_applied_at` columns in the cache. A partial response does not create a delivery receipt.
 7. The cache's `last_changed_at` is the applied version, so unchanged refreshes do not repeat sends. The batch cursor also permits advancing past skipped records.
+
+**Performance caveat:** the current "targeted" SQL refresh functions filter which IDs get reconciled but still scan the full HubSpot FDW inventory per invocation. Each preview and apply therefore performs one remote inventory scan for the selected batch (not 100 remote scans). This may make the wall-clock time closer to a full seed than expected. We have **not benchmarked the new path**, since the prototype is not deployed and targeted cache refreshes were not invoked here. A future optimized remote-ID fetch could improve performance without changing this per-batch contract. A full seed can still be done periodically for discovering records that were not previously cached as update candidates; it is not required before each outbound batch.
 
 HubSpot remote writes and Postgres receipts cannot commit atomically. If HubSpot succeeds and receipt storage fails, do a fresh read/reconciliation before attempting another apply. There is also a race between the final preflight and a remote HubSpot update; no remote compare-and-swap is available.
 

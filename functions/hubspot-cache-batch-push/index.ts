@@ -67,8 +67,7 @@ function parseInput(raw: unknown): Required<Pick<RequestBody, "action" | "entity
       input.selectedKeys.length < 1 || input.selectedKeys.length > limit ||
       input.selectedKeys.some((key: unknown) => typeof key !== "string" ||
         key.length > 255 || !/^s:[^\r\n]+$/.test(key)) ||
-      new Set(input.selectedKeys).size !== input.selectedKeys.length ||
-      [...input.selectedKeys].sort().some((key, index) => key !== (input.selectedKeys as string[])[index])
+      new Set(input.selectedKeys).size !== input.selectedKeys.length
   )) fail("selectedKeys must be 1..limit distinct, ordered Supabase sync keys");
   if (action === "apply" && input.selectedKeys === undefined) {
     fail("apply requires selectedKeys from the reviewed preview");
@@ -152,7 +151,7 @@ async function pendingBatch(
 }
 
 /**
- * Single transaction-local refresh for just the SELECTED identities. The
+ * One targeted SQL refresh for just the SELECTED identities. The
  * existing SQL refresh function updates those cache rows, reads both current
  * Supabase local fields and the HubSpot foreign table and recalculates conflict
  * status. IMPORTANT: in the current FDW implementation it scans HubSpot's

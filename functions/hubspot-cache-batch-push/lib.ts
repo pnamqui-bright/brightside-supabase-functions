@@ -94,7 +94,7 @@ export function mappingProperty(entity: Entity): string {
 function normalized(key: string, value: string): string {
   if (!value) return "";
   if (key === "last_prospect_scan") {
-    const parsed = Date.parse(value);
+    const parsed = /^\d{12,14}$/.test(value) ? Number(value) : Date.parse(value);
     return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value;
   }
   return value;
@@ -106,11 +106,14 @@ export function propertyProblems(properties: Record<string, string>): string[] {
     if (ENUM_OPTIONS[key] && !ENUM_OPTIONS[key].has(value)) {
       problems.push(key + ":unsupported_enum");
     }
-    if (["prospect_score_supabase", "numberofemployees"].includes(key) &&
-      !/^\d+(\.\d+)?$/.test(value)) {
+    if (key === "prospect_score_supabase" && !/^-?\d+(\.\d+)?$/.test(value)) {
       problems.push(key + ":invalid_number");
     }
-    if (key === "last_prospect_scan" && !Number.isFinite(Date.parse(value))) {
+    if (key === "numberofemployees" && !/^\d+$/.test(value)) {
+      problems.push(key + ":invalid_number");
+    }
+    if (key === "last_prospect_scan" &&
+      !Number.isFinite(/^\d{12,14}$/.test(value) ? Number(value) : Date.parse(value))) {
       problems.push(key + ":invalid_datetime");
     }
   }

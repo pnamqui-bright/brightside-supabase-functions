@@ -68,7 +68,7 @@ function parseInput(raw: unknown): Required<Pick<RequestBody, "action" | "entity
       input.selectedKeys.some((key: unknown) => typeof key !== "string" ||
         key.length > 255 || !/^s:[^\r\n]+$/.test(key)) ||
       new Set(input.selectedKeys).size !== input.selectedKeys.length ||
-      [...input.selectedKeys].sort().some((key, index) => key !== input.selectedKeys[index])
+      [...input.selectedKeys].sort().some((key, index) => key !== (input.selectedKeys as string[])[index])
   )) fail("selectedKeys must be 1..limit distinct, ordered Supabase sync keys");
   if (action === "apply" && input.selectedKeys === undefined) {
     fail("apply requires selectedKeys from the reviewed preview");

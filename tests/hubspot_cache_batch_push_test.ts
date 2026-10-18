@@ -1,5 +1,5 @@
 import {
-  candidateFromCache, decideRemote, mappingProperty, propertyProblems,
+  candidateFromCache, decideRemote, droppedAfterRefresh, mappingProperty, propertyProblems,
   writableProperties, type CacheRow,
 } from "../functions/hubspot-cache-batch-push/lib.ts";
 
@@ -131,5 +131,33 @@ Deno.test("only approved fields are writable", () => {
   const contacts = writableProperties("contacts");
   for (const field of ["lifecyclestage", "hubspot_owner_id", "hs_legal_basis", "hs_email_optout"]) {
     check(!companies.includes(field) && !contacts.includes(field), "protected HubSpot property slipped into mapping: " + field);
+  }
+});
+
+Deno.test("targeted refresh removes ineligible records without topping up", () => {
+  const first = candidateFromCache("companies", companyRow({
+    sync_key: "s:A", hubspot_id: "101", supabase_external_id: "A",
+  }));
+  const third = candidateFromCache("companies", companyRow({
+    sync_key: "s:C", hubspot_id: "103", supabase_external_id: "C",
+  }));
+  check(first && third, "expected candidates");
+  const dropped = droppedAfterRefresh(["s:A", "s:B", "s:C"], [first, third]);
+  check(dropped.length === 1 && dropped[0] === "s:B",
+    "refresh must report dropped middle key without replacement");
+});
+Deno.test("targeted refresh rejects unselected or duplicate identities", () => {
+  const first = candidateFromCache("companies", companyRow({
+    sync_key: "s:A", hubspot_id: "101", supabase_external_id: "A",
+  }));
+  check(first, "expected candidate");
+  for (const input of [[first, first], [first]]) {
+    let failed = false;
+    try {
+      droppedAfterRefresh(input.length === 2 ? ["s:A"] : ["s:B"], input);
+    } catch {
+      failed = true;
+    }
+    check(failed, "must fail closed on unexpected/duplicated candidate");
   }
 });

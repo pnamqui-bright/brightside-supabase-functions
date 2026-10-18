@@ -1,5 +1,9 @@
 # Brightside Supabase Edge Functions
 
+> **Review-only prototype (2026-10-18):** [cache -> HubSpot batch push](docs/hubspot-cache-batch-push-prototype.md) adds a single manual Edge Function supporting companies or contacts in batches of up to 100. The Edge Function is **not deployed, not invoked, and its delivery-marker SQL migration is unapplied**. The legacy endpoints remain unchanged. Do not schedule or enable writes without separate approval.
+
+
+
 > **New on the Issue #1 feature branch:** manual **BULK-ONLY** bidirectional HubSpot ↔ Supabase synchronization. The supported CLI is now `hubspot-sync plan`, `hubspot-sync apply`, and `hubspot-sync resume`. There is no single-record/`--id` user workflow. Default bulk runs skip and report whole-record conflicts; `--force=pull` or `--force=push` is an explicit directional override. See **[the bulk sync guide](docs/bulk-sync.md)** for diagrams, limits, CLI usage, migration, and prerequisites. **Nothing in this branch is deployed and its migration is not applied.**
 
 **Before using the bulk sync**, separately review and approve `migrations/20261013_bulk_sync_baseline.sql` (two nullable baseline columns and one trigger adjustment). The existing manual endpoints below remain for compatibility; the following original README sections describe their legacy five-record interface.

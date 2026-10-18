@@ -49,7 +49,7 @@ SELECT sync_key,
     hubspot_records
 ,
     CASE
-        WHEN cache.identity_status LIKE 'ambiguous\\_%' ESCAPE '\\'
+        WHEN left(cache.identity_status, 10) = 'ambiguous_'
           OR coalesce(cardinality(cache.conflicting_fields), 0) > 0
           OR cache.unified_fields IS NULL
           THEN 'conflict'::text
@@ -94,7 +94,7 @@ SELECT sync_key,
     hubspot_records
 ,
     CASE
-        WHEN cache.identity_status LIKE 'ambiguous\\_%' ESCAPE '\\'
+        WHEN left(cache.identity_status, 10) = 'ambiguous_'
           OR coalesce(cardinality(cache.conflicting_fields), 0) > 0
           OR cache.unified_fields IS NULL
           THEN 'conflict'::text

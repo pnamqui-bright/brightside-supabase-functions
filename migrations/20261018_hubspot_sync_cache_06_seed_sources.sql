@@ -214,7 +214,7 @@ BEGIN
   FROM reconciled r
   ORDER BY r.external_id NULLS LAST, r.entity_key;
 END;
-$function$
+$function$;
 
 
 -- Existing contact reconciliation and 12 mapped fields are preserved.
@@ -418,7 +418,7 @@ written AS (
 )
 SELECT * FROM written;
 END;
-$function$
+$function$;
 
 
 REVOKE ALL ON FUNCTION brightside._hubspot_sync_source_companies() FROM PUBLIC;

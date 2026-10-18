@@ -156,7 +156,7 @@ BEGIN
 
       -- Exact literal FDW paging check is enforced by the source helper.
       CREATE TEMP TABLE _hubspot_sync_seed_contacts ON COMMIT DROP AS
-        SELECT * FROM brightside._hubspot_sync_source_contacts();
+        SELECT * FROM hubspot."Contacts" ORDER BY id LIMIT 10001;
 
       CREATE UNIQUE INDEX _hubspot_sync_seed_contacts_id_idx
         ON pg_temp._hubspot_sync_seed_contacts (id);

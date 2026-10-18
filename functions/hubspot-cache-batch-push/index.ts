@@ -11,7 +11,7 @@
 import postgres from "npm:postgres@3.4.7";
 import { isAuthorizedSecretRequest } from "../hubspot-webhook/lib/auth.ts";
 import {
-  candidateFromCache, decideRemote, mappingProperty, writableProperties,
+  candidateFromCache, decideRemote, droppedAfterRefresh, mappingProperty, writableProperties,
   type CacheRow, type Candidate, type Entity, type Json,
 } from "./lib.ts";
 
@@ -339,8 +339,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         db, input.entity, input.after, selectedKeys.length, selectedKeys, true,
       )
       : [];
-    const eligible = new Set(candidates.map((c) => c.syncKey));
-    const noLongerEligible = selectedKeys.filter((key) => !eligible.has(key));
+    const noLongerEligible = droppedAfterRefresh(selectedKeys, candidates);
     const nextCursor = selectedKeys.length === input.limit
       ? selectedKeys[selectedKeys.length - 1]
       : undefined;

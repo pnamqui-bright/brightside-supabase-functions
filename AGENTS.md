@@ -24,6 +24,8 @@ See `docs/manual-sync.md` for request contracts and `docs/hubspot-sync-contract.
 
 ## New bulk-only workflow (Issue #1)
 
+**Scoped exception for the newer cache-driven outbound batch prototype (`hubspot-cache-batch-push`):** the user explicitly excluded contact-company associations from this version. Match existing contacts only by their explicit contact IDs. Do **not** read, verify, create, modify, or reconcile contact-company associations, and do **not** update the contact's `supabase_company_id` custom property. Keep this separate from the legacy targeted endpoints and the earlier inbound-creation workflow, whose historical association rules are unchanged. Never treat the legacy contact-association requirement as a deployment blocker for this new outbound function.
+
 The primary CLI interface is `hubspot-sync plan | apply | resume` for **full dataset** reconciliation; there is no new targeted/single-ID user interface. The `hubspot-bulk-plan` endpoint is read-only, and `hubspot-bulk-execute` accepts bounded ID batches exclusively as an internal CLI transport. Keep the legacy five-ID endpoints working; their preview/hash contract above is legacy-only.
 
 The new inbound **bulk** path may create unmatched HubSpot objects in Supabase, reusing deterministic IDs and requiring verified contact-company links. It **never** creates outbound HubSpot objects. The original integration contract's no-creation rule applies to the legacy targeted endpoints, not this approved bulk feature.

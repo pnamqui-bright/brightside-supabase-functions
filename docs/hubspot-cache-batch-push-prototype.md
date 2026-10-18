@@ -26,9 +26,9 @@ Calls require an opaque Supabase `sb_secret_` key in the `apikey` request header
 - Reads `brightside.hubspot_company_sync_view` or `brightside.hubspot_contact_sync_view`. Only `status='no_conflict'` and `identity_status='matched'` can be selected.
 - Candidate properties must have a populated unified value and a blank cached HubSpot value. Never overwrite a nonblank differing HubSpot value.
 - Company mapped fields: name, domain, phone, address, address2, city, state, zip, country, website, employee count, founded year, LinkedIn/Facebook/Instagram/TikTok/X/Pinterest URLs, Supabase score, maturity, ICP vertical, revenue tier, last prospect scan.
-- Contact mapped fields: first/last name, email, phone, job title, seniority, LinkedIn URL, role category, and contact/email provenance. **Contact-to-company relationships and the contact `supabase_company_id` property are explicitly out of scope.**
-- Fills missing HubSpot company `supabase_company_id` and contact `supabase_contact_id` **identity mapping properties** from exact matched external IDs; includes the deterministic HUB-IDs created during the completed inbound sync. It does **not** populate the contact's `supabase_company_id` property.
-- Does not create HubSpot records, infer matches from domains/emails, **query, validate, create, modify, or reconcile contact-company associations**, alter contact `company` display text, or edit consent, legal basis, lifecycle, owners, deals, and unrelated CRM fields. That validation requirement belongs to the prior legacy/inbound sync contracts, not this explicitly limited outbound prototype.
+- Contact mapped fields: first/last name, email, phone, job title, seniority, LinkedIn URL, role category, contact/email provenance, Supabase company-ID property (custom property, not an association).
+- Fills missing HubSpot custom `supabase_company_id` and `supabase_contact_id` properties from exact matched external IDs; includes the deterministic HUB-IDs created during the completed inbound sync.
+- Does not create HubSpot records, infer matches from domains/emails, create company associations, alter contact `company` display text, or edit consent, legal basis, lifecycle, owners, deals, and unrelated CRM fields.
 - Live HubSpot enum options were inspected 2026-10-18; the prototype uses a fixed allowlist and fails closed on unsupported values. Revalidate before first apply.
 
 ## Verification and idempotency

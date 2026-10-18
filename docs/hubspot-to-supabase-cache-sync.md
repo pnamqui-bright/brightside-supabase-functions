@@ -55,6 +55,7 @@ Dry run:
 
 Applied results:
 - 352 companies created, 1,324 existing company parent rows updated.
+- Of the new companies, 65 have a blank HubSpot company name and were created with NULL `company_name` (per Supabase's nullable schema); these may need later CRM data quality review.
 - Child rows: 239 domains created; 259 phones created, 1 updated; 197 locations created, 2 updated; 239 websites created.
 - 5 existing contact channels updated; 0 contacts created.
 - 352 HubSpot-only company cache identities promoted to canonical Supabase IDs.

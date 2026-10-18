@@ -11,6 +11,8 @@ services:
       - ../brightside-supabase-functions/functions/hubspot-bulk-pull:/home/deno/functions/hubspot-bulk-pull:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-plan:/home/deno/functions/hubspot-bulk-plan:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-execute:/home/deno/functions/hubspot-bulk-execute:ro
+      # PROTOTYPE - review/approve before mounting:
+      # - ../brightside-supabase-functions/functions/hubspot-cache-batch-push:/home/deno/functions/hubspot-cache-batch-push:ro
 
   # Optional: make custom function source visible in self-hosted Studio.
   # Remove if your Studio version does not mount edge function sources here.
@@ -21,3 +23,5 @@ services:
       - ../brightside-supabase-functions/functions/hubspot-bulk-pull:/app/edge-functions/hubspot-bulk-pull:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-plan:/app/edge-functions/hubspot-bulk-plan:ro
       - ../brightside-supabase-functions/functions/hubspot-bulk-execute:/app/edge-functions/hubspot-bulk-execute:ro
+      # PROTOTYPE - review/approve before mounting:
+      # - ../brightside-supabase-functions/functions/hubspot-cache-batch-push:/app/edge-functions/hubspot-cache-batch-push:ro

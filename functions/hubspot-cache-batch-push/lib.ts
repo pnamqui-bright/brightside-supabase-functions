@@ -169,6 +169,25 @@ export function candidateFromCache(entity: Entity, row: CacheRow): Candidate | n
   };
 }
 
+/**
+ * Preview and apply must use exactly the originally selected batch keys.
+ * If a refreshed item becomes conflicted/missing/delivered, drop it; do not
+ * fill its slot with another unchecked record from the queue.
+ */
+export function droppedAfterRefresh(
+  selectedKeys: string[], eligible: Candidate[],
+): string[] {
+  const selected = new Set(selectedKeys);
+  const seen = new Set<string>();
+  for (const candidate of eligible) {
+    if (!selected.has(candidate.syncKey) || seen.has(candidate.syncKey)) {
+      throw new Error("Refreshed batch contains unexpected or duplicated identity");
+    }
+    seen.add(candidate.syncKey);
+  }
+  return selectedKeys.filter((key) => !seen.has(key));
+}
+
 export type RemoteDecision =
   | { kind: "already_aligned"; properties: Record<string, string> }
   | { kind: "update"; properties: Record<string, string> }

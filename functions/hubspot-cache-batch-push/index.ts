@@ -23,6 +23,7 @@ type RequestBody = {
   after?: string;
   previewHash?: string;
   confirm?: string;
+  selectedKeys?: string[];
 };
 
 const HUBSPOT_API = "https://api.hubapi.com";
@@ -41,7 +42,7 @@ function fail(message: string): never {
   throw new Error("invalid_request: " + message);
 }
 function parseInput(raw: unknown): Required<Pick<RequestBody, "action" | "entity" | "limit" | "after">> &
-  Pick<RequestBody, "previewHash" | "confirm"> {
+  Pick<RequestBody, "previewHash" | "confirm" | "selectedKeys"> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("expected object");
   const input = raw as Record<string, unknown>;
   const action = input.action === undefined ? "preview" : input.action;
@@ -61,10 +62,22 @@ function parseInput(raw: unknown): Required<Pick<RequestBody, "action" | "entity
     fail("previewHash must be a SHA-256 hex string");
   }
   if (input.confirm !== undefined && typeof input.confirm !== "string") fail("invalid confirm");
+  if (input.selectedKeys !== undefined && (
+      !Array.isArray(input.selectedKeys) ||
+      input.selectedKeys.length < 1 || input.selectedKeys.length > limit ||
+      input.selectedKeys.some((key: unknown) => typeof key !== "string" ||
+        key.length > 255 || !/^s:[^\r\n]+$/.test(key)) ||
+      new Set(input.selectedKeys).size !== input.selectedKeys.length ||
+      [...input.selectedKeys].sort().some((key, index) => key !== input.selectedKeys[index])
+  )) fail("selectedKeys must be 1..limit distinct, ordered Supabase sync keys");
+  if (action === "apply" && input.selectedKeys === undefined) {
+    fail("apply requires selectedKeys from the reviewed preview");
+  }
   return {
     action, entity, limit, after,
     previewHash: input.previewHash as string | undefined,
     confirm: input.confirm as string | undefined,
+    selectedKeys: input.selectedKeys as string[] | undefined,
   };
 }
 
@@ -80,23 +93,28 @@ const SOURCE = {
     cache: "hubspot_company_sync_cache",
     table: "companies",
     primary: "company_external_id",
+    refresh: "refresh_hubspot_company_sync_cache",
   },
   contacts: {
     view: "hubspot_contact_sync_view",
     cache: "hubspot_contact_sync_cache",
     table: "contacts",
     primary: "contact_external_id",
+    refresh: "refresh_hubspot_contact_sync_cache",
   },
 } as const;
 
 /**
- * Select only matched, conflict-free, locally fresh records from the
- * persistent cache. Version marker prevents resending a successful batch
- * until the underlying source content actually changes.
+ * First selection comes from the existing cache, not another full seed.
+ * Intentionally omit the parent-timestamp test at selection time, because
+ * refreshing this batch is how locally changed records can become eligible.
+ * After refresh, re-apply ALL gates and never top-up with different keys.
  */
-async function pendingBatch(db: Pg, entity: Entity, after: string, limit: number):
-  Promise<Candidate[]> {
-  const source = SOURCE[entity]; // Fixed allowlist: not client-controlled SQL.
+async function pendingBatch(
+  db: Pg, entity: Entity, after: string, limit: number,
+  onlyKeys?: string[], refreshed = false,
+): Promise<Candidate[]> {
+  const source = SOURCE[entity]; // Fixed allowlist: no client SQL identifiers.
   const mapping = mappingProperty(entity);
   const sql =
     "SELECT v.sync_key, v.hubspot_id, v.supabase_external_id," +
@@ -109,8 +127,11 @@ async function pendingBatch(db: Pg, entity: Entity, after: string, limit: number
     " WHERE v.sync_key > $1" +
     " AND v.status='no_conflict' AND v.identity_status='matched'" +
     " AND v.hubspot_id ~ '^[0-9]+$'" +
-    " AND p.hubspot_export_updated_at IS NOT DISTINCT FROM v.supabase_source_updated_at" +
     " AND cache.hubspot_last_applied_version IS DISTINCT FROM cache.last_changed_at" +
+    " AND ($5::text[] IS NULL OR v.sync_key=any($5::text[]))" +
+    (refreshed
+      ? " AND p.hubspot_export_updated_at IS NOT DISTINCT FROM v.supabase_source_updated_at"
+      : "") +
     " AND (EXISTS (" +
     "   SELECT 1 FROM jsonb_each_text(coalesce(v.unified_fields,'{}'::jsonb)) f(key,val)" +
     "   WHERE f.key = any($3::text[]) AND nullif(btrim(f.val),'') IS NOT NULL" +
@@ -118,15 +139,58 @@ async function pendingBatch(db: Pg, entity: Entity, after: string, limit: number
     " ) OR nullif(btrim(v.hubspot_records->0->>$4::text),'') IS NULL)" +
     " ORDER BY v.sync_key LIMIT $2";
 
-  const rows = await db.unsafe(sql, [after, limit, [...writableProperties(entity)], mapping]);
+  const rows = await db.unsafe(sql, [
+    after, limit, [...writableProperties(entity)], mapping, onlyKeys ?? null,
+  ]);
   const candidates: Candidate[] = [];
   for (const row of rows) {
     const item = candidateFromCache(entity, row as unknown as CacheRow);
-    // If the source unexpectedly fails identity validation, fail closed.
     if (!item) throw new Error("Invalid candidate in cache; refresh required");
     candidates.push(item);
   }
   return candidates;
+}
+
+/**
+ * Single transaction-local refresh for just the SELECTED identities. The
+ * existing SQL refresh function updates those cache rows, reads both current
+ * Supabase local fields and the HubSpot foreign table and recalculates conflict
+ * status. IMPORTANT: in the current FDW implementation it scans HubSpot's
+ * inventory once per targeted invocation, not only the requested remote IDs.
+ */
+async function refreshSelectedBatch(
+  db: Pg, entity: Entity, selectedKeys: string[],
+): Promise<void> {
+  if (!selectedKeys.length) return;
+  if (selectedKeys.length > MAX_BATCH) fail("too many selected keys");
+  const source = SOURCE[entity];
+  const snapshots = await db.unsafe(
+    "SELECT sync_key,supabase_id,hubspot_ids FROM brightside." + source.cache +
+    " WHERE sync_key=any($1::text[])", [selectedKeys],
+  );
+  const byKey = new Map(snapshots.map((r) => [value(r.sync_key), r]));
+  const localIds: string[] = [];
+  const hubspotIds: string[] = [];
+  for (const key of selectedKeys) {
+    const row = byKey.get(key);
+    const remote = row?.hubspot_ids as unknown;
+    const remoteId = Array.isArray(remote) && remote.length === 1 ? value(remote[0]) : "";
+    const localId = value(row?.supabase_id);
+    if (!row || key !== "s:" + localId || !remoteId || !/^\d+$/.test(remoteId)) {
+      throw new Error("stale_preview: selected identity changed; refresh/re-preview");
+    }
+    localIds.push(localId);
+    hubspotIds.push(remoteId);
+  }
+  // 100 IDs per side = 200 supplied IDs, below the SQL helper's 250-ID cap.
+  const refreshed = await db.unsafe(
+    "SELECT sync_key FROM brightside." + source.refresh +
+      "($1::text[],$2::text[])", [localIds,hubspotIds],
+  );
+  const found = new Set(refreshed.map((r) => value(r.sync_key)));
+  if (selectedKeys.some((key) => !found.has(key))) {
+    throw new Error("stale_preview: identity remapped during refresh");
+  }
 }
 
 async function hubspotRequest(token: string, path: string, input: Json): Promise<Json> {
@@ -244,7 +308,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   let db: Pg | undefined;
   try {
     const body = await request.text();
-    if (body.length > 4096) fail("request too large");
+    if (body.length > 35000) fail("request too large");
     const input = parseInput(JSON.parse(body));
     const url = Deno.env.get("SUPABASE_DB_URL");
     if (!url) throw new Error("SUPABASE_DB_URL not configured");
@@ -252,32 +316,58 @@ Deno.serve(async (request: Request): Promise<Response> => {
       max: 1, prepare: false, connect_timeout: 5, idle_timeout: 5,
     });
 
-    const candidates = await pendingBatch(db, input.entity, input.after, input.limit);
-    const nextCursor = candidates.length === input.limit
-      ? candidates[candidates.length - 1]?.syncKey
+    // An apply request must be explicitly approved and enabled before it can
+    // even refresh/cache selected identities.
+    if (input.action === "apply" && (input.confirm !== "APPLY" || !input.previewHash)) {
+      fail("apply requires confirm=APPLY and previewHash");
+    }
+    if (input.action === "apply" &&
+        Deno.env.get("HUBSPOT_CACHE_PUSH_ENABLE_WRITES") !== "true") {
+      return respond({ error: "Apply disabled until deployment is explicitly approved" }, 403);
+    }
+
+    // Preview: pick the next N cached candidate keys once.
+    // Apply: refresh exactly the reviewed selectedKeys from the preview.
+    // Neither path refills the batch from later keys if any become ineligible.
+    const initial = input.selectedKeys === undefined
+      ? await pendingBatch(db, input.entity, input.after, input.limit)
+      : [];
+    const selectedKeys = input.selectedKeys ?? initial.map((c) => c.syncKey);
+    await refreshSelectedBatch(db, input.entity, selectedKeys);
+    const candidates = selectedKeys.length
+      ? await pendingBatch(
+        db, input.entity, input.after, selectedKeys.length, selectedKeys, true,
+      )
+      : [];
+    const eligible = new Set(candidates.map((c) => c.syncKey));
+    const noLongerEligible = selectedKeys.filter((key) => !eligible.has(key));
+    const nextCursor = selectedKeys.length === input.limit
+      ? selectedKeys[selectedKeys.length - 1]
       : undefined;
+
+    // The reviewed hash binds the originally selected IDs to the refreshed
+    // candidate payload, including the identities excluded after refresh.
     const previewHash = await digest({
-      entity: input.entity, limit: input.limit, after: input.after, candidates,
+      entity: input.entity, limit: input.limit, after: input.after,
+      selectedKeys, candidates, noLongerEligible,
     });
     const preview = {
       entity: input.entity,
       limit: input.limit,
       after: input.after || null,
       nextCursor,
+      selectedKeys,
+      refreshedCount: selectedKeys.length,
+      eligibleCount: candidates.length,
+      noLongerEligible,
       count: candidates.length,
       previewHash,
       records: candidates,
     };
     if (input.action === "preview") return respond({ action: "preview", ...preview });
 
-    if (input.confirm !== "APPLY" || !input.previewHash) {
-      fail("apply requires confirm=APPLY and previewHash");
-    }
     if (input.previewHash !== previewHash) {
-      throw new Error("stale_preview: candidate snapshot changed");
-    }
-    if (Deno.env.get("HUBSPOT_CACHE_PUSH_ENABLE_WRITES") !== "true") {
-      return respond({ error: "Apply disabled until deployment is explicitly approved" }, 403);
+      throw new Error("stale_preview: batch eligibility or values changed after refresh");
     }
     if (!candidates.length) return respond({ action: "apply", ...preview, applied: 0 });
 

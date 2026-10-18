@@ -5,7 +5,7 @@
 ## Contract
 
 New manually invoked Edge Function: `hubspot-cache-batch-push`.
-POST preview defaults to no external network access and no writes:
+POST preview uses the Supabase database only; it makes no HubSpot API requests or writes:
 
 ```json
 {"entity":"companies","limit":50,"action":"preview"}

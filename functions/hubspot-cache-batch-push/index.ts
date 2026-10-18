@@ -115,7 +115,7 @@ async function pendingBatch(db: Pg, entity: Entity, after: string, limit: number
     "   SELECT 1 FROM jsonb_each_text(coalesce(v.unified_fields,'{}'::jsonb)) f(key,val)" +
     "   WHERE f.key = any($3::text[]) AND nullif(btrim(f.val),'') IS NOT NULL" +
     "     AND nullif(btrim(v.hubspot_fields->>f.key),'') IS NULL" +
-    " ) OR nullif(btrim(v.hubspot_records->0->>$4),'') IS NULL)" +
+    " ) OR nullif(btrim(v.hubspot_records->0->>$4::text),'') IS NULL)" +
     " ORDER BY v.sync_key LIMIT $2";
 
   const rows = await db.unsafe(sql, [after, limit, [...writableProperties(entity)], mapping]);

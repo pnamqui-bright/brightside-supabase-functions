@@ -40,7 +40,6 @@ const CONTACTS = [
   "firstname", "lastname", "email", "phone", "jobtitle",
   "seniority", "hs_linkedin_url", "role_category_supabase",
   "contact_provenance_supabase", "email_provenance_supabase",
-  "supabase_company_id",
 ] as const;
 
 // Snapshot of the portal's live enum definitions checked on 2026-10-18.

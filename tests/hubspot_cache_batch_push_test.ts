@@ -42,7 +42,7 @@ Deno.test("synthetic created company may backfill its HubSpot external-ID proper
   check(Object.keys(candidate.properties).length === 1, "unexpected writes for synthetic record");
 });
 
-Deno.test("contact proposals exclude company associations, consent, legal basis, and company display name", () => {
+Deno.test("contact proposals exclude CRM consent, legal basis, and contact company display name", () => {
   const candidate = candidateFromCache("contacts", {
     sync_key: "s:C012-GEN",
     hubspot_id: "281029508030",
@@ -65,7 +65,7 @@ Deno.test("contact proposals exclude company associations, consent, legal basis,
   });
   check(candidate, "missing contact candidate");
   check(candidate.properties.email === "info@example.com", "missing email fill");
-  check(candidate.properties.supabase_company_id === undefined, "outbound bulk must not sync contact-company link");
+  check(candidate.properties.supabase_company_id === "V01-C012", "missing custom company ID");
   check(candidate.properties.company === undefined, "must not change company display name");
   check(candidate.properties.hs_legal_basis === undefined, "must not alter legal basis");
   check(mappingProperty("contacts") === "supabase_contact_id", "invalid link property");
